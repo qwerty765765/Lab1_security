@@ -29,42 +29,42 @@ const writeData = (data) => {
   }
 };
 
+// Обработчик запросов для Vercel
 module.exports = async (req, res) => {
   // Настройка CORS
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
   
-  // Обработка preflight запросов
+  // Обработка preflight запросов (OPTIONS)
   if (req.method === 'OPTIONS') {
     res.status(200).end();
     return;
   }
   
-  const { method, url } = req;
-  const id = url.split('/').pop(); // Получаем ID из URL
-  
-  const data = readData();
-  let statusCode = 200;
-  let responseData = {};
-  
   try {
-    switch (method) {
+    // Получаем путь запроса
+    const urlParts = req.url.split('/').filter(part => part !== '');
+    const id = urlParts[urlParts.length - 1];
+    
+    // Читаем данные
+    let data = readData();
+    
+    // Обработка разных методов
+    switch (req.method) {
       case 'GET':
-        if (id && id !== 'security') {
-          // Получение одного объекта
-          const item = data.security.find(item => item.id == id);
+        if (id && !isNaN(id)) {
+          // Получение одного объекта по ID
+          const item = data.security.find(item => item.id === parseInt(id));
           if (item) {
-            responseData = item;
+            return res.status(200).json(item);
           } else {
-            statusCode = 404;
-            responseData = { error: 'Object not found' };
+            return res.status(404).json({ error: 'Object not found' });
           }
         } else {
           // Получение всех объектов
-          responseData = data.security;
+          return res.status(200).json(data.security);
         }
-        break;
         
       case 'POST':
         // Создание нового объекта
@@ -74,17 +74,15 @@ module.exports = async (req, res) => {
         };
         data.security.push(newItem);
         if (writeData(data)) {
-          responseData = newItem;
+          return res.status(201).json(newItem);
         } else {
-          statusCode = 500;
-          responseData = { error: 'Failed to save data' };
+          return res.status(500).json({ error: 'Failed to save data' });
         }
-        break;
         
       case 'PUT':
         // Обновление объекта
-        if (id && id !== 'security') {
-          const index = data.security.findIndex(item => item.id == id);
+        if (id && !isNaN(id)) {
+          const index = data.security.findIndex(item => item.id === parseInt(id));
           if (index !== -1) {
             data.security[index] = {
               ...data.security[index],
@@ -92,51 +90,40 @@ module.exports = async (req, res) => {
               id: parseInt(id)
             };
             if (writeData(data)) {
-              responseData = data.security[index];
+              return res.status(200).json(data.security[index]);
             } else {
-              statusCode = 500;
-              responseData = { error: 'Failed to save data' };
+              return res.status(500).json({ error: 'Failed to save data' });
             }
           } else {
-            statusCode = 404;
-            responseData = { error: 'Object not found' };
+            return res.status(404).json({ error: 'Object not found' });
           }
         } else {
-          statusCode = 400;
-          responseData = { error: 'Invalid request' };
+          return res.status(400).json({ error: 'Invalid ID' });
         }
-        break;
         
       case 'DELETE':
         // Удаление объекта
-        if (id && id !== 'security') {
-          const index = data.security.findIndex(item => item.id == id);
+        if (id && !isNaN(id)) {
+          const index = data.security.findIndex(item => item.id === parseInt(id));
           if (index !== -1) {
-            const deleted = data.security.splice(index, 1);
+            data.security.splice(index, 1);
             if (writeData(data)) {
-              responseData = { message: 'Object deleted successfully', deleted: deleted[0] };
+              return res.status(200).json({ message: 'Object deleted successfully' });
             } else {
-              statusCode = 500;
-              responseData = { error: 'Failed to save data' };
+              return res.status(500).json({ error: 'Failed to save data' });
             }
           } else {
-            statusCode = 404;
-            responseData = { error: 'Object not found' };
+            return res.status(404).json({ error: 'Object not found' });
           }
         } else {
-          statusCode = 400;
-          responseData = { error: 'Invalid request' };
+          return res.status(400).json({ error: 'Invalid ID' });
         }
-        break;
         
       default:
-        statusCode = 405;
-        responseData = { error: 'Method not allowed' };
+        return res.status(405).json({ error: 'Method not allowed' });
     }
-    
-    res.status(statusCode).json(responseData);
   } catch (error) {
     console.error('API Error:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    return res.status(500).json({ error: 'Internal server error', details: error.message });
   }
 };
