@@ -1,4 +1,3 @@
-// Хранилище данных в памяти
 let securityData = [
   {
     "id": 1,
@@ -63,40 +62,73 @@ const getNextId = () => {
   return maxId + 1;
 };
 
+// 🔧 Надёжная функция извлечения ID из URL
+const extractIdFromUrl = (req) => {
+  try {
+    // Создаём полный URL для корректного парсинга
+    const protocol = req.headers['x-forwarded-proto'] || 'http';
+    const host = req.headers.host || 'localhost';
+    const fullUrl = `${protocol}://${host}${req.url}`;
+    
+    const { pathname, searchParams } = new URL(fullUrl);
+    
+    // Разбиваем путь: /api/security/1 → ['api', 'security', '1']
+    const parts = pathname.split('/').filter(p => p && p !== '');
+    
+    // Ищем числовой ID в последних частях пути
+    // Поддерживаем: /api/security/1 и /api/security/1/
+    for (let i = parts.length - 1; i >= 0; i--) {
+      const potentialId = parseInt(parts[i], 10);
+      if (!isNaN(potentialId) && parts[i] === potentialId.toString()) {
+        return potentialId;
+      }
+    }
+    
+    return null;
+  } catch (error) {
+    console.error('[URL Parse Error]:', error.message);
+    return null;
+  }
+};
+
 module.exports = async (req, res) => {
-  // Настройка CORS
+  // 🔐 Настройка CORS
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
   
+  // Обработка preflight-запросов
   if (req.method === 'OPTIONS') {
     return res.status(200).end();
   }
   
   try {
-    // Получаем ID из URL (поддержка /api/security и /api/security/1)
-    const url = req.url;
-    const parts = url.split('/').filter(p => p !== '');
-    let id = null;
+    // 🔧 Извлекаем ID с помощью надёжной функции
+    const id = extractIdFromUrl(req);
     
-    // Если последняя часть это число, то это ID
-    const lastPart = parts[parts.length - 1];
-    if (lastPart && !isNaN(parseInt(lastPart))) {
-      id = parseInt(lastPart);
+    // 🔍 Логирование для отладки
+    console.log(`[API] ${req.method} ${req.url} - Parsed ID: ${id}`);
+    
+    // Парсинг JSON-тела запроса (если есть)
+    let body = {};
+    if (['POST', 'PUT'].includes(req.method) && req.headers['content-type']?.includes('application/json')) {
+      if (typeof req.body === 'string') {
+        body = JSON.parse(req.body);
+      } else {
+        body = req.body || {};
+      }
     }
     
-    console.log(`[API] ${req.method} ${url} - ID: ${id}`);
-    
-    // GET запросы
+    // ==================== GET ====================
     if (req.method === 'GET') {
       if (id !== null) {
         // Получение одного объекта по ID
         const item = securityData.find(item => item.id === id);
         if (item) {
-          console.log(`[API] GET - Found item ${id}: ${item.name}`);
+          console.log(`[API] GET /${id} - Found: ${item.name}`);
           return res.status(200).json(item);
         } else {
-          console.log(`[API] GET - Item ${id} not found`);
+          console.log(`[API] GET /${id} - Not found`);
           return res.status(404).json({ error: `Object with id ${id} not found` });
         }
       } else {
@@ -106,21 +138,21 @@ module.exports = async (req, res) => {
       }
     }
     
-    // POST запросы (создание)
+    // ==================== POST ====================
     if (req.method === 'POST') {
       const newId = getNextId();
-      console.log(`[API] POST - Creating new item with id ${newId}`, req.body);
+      console.log(`[API] POST - Creating new item with id ${newId}`);
       
       const newItem = {
         id: newId,
-        name: req.body.name || '',
-        type: req.body.type || '',
-        address: req.body.address || '',
-        cameras: req.body.cameras || 0,
-        staff: req.body.staff || 0,
-        status: req.body.status || 'active',
-        description: req.body.description || '',
-        emergency_contacts: req.body.emergency_contacts || ''
+        name: body.name || '',
+        type: body.type || '',
+        address: body.address || '',
+        cameras: typeof body.cameras === 'number' ? body.cameras : 0,
+        staff: typeof body.staff === 'number' ? body.staff : 0,
+        status: body.status || 'active',
+        description: body.description || '',
+        emergency_contacts: body.emergency_contacts || ''
       };
       
       securityData.push(newItem);
@@ -128,53 +160,56 @@ module.exports = async (req, res) => {
       return res.status(201).json(newItem);
     }
     
-    // PUT запросы (обновление)
+    // ==================== PUT ====================
     if (req.method === 'PUT') {
-      if (id !== null) {
-        const index = securityData.findIndex(item => item.id === id);
-        if (index !== -1) {
-          const updatedItem = {
-            ...securityData[index],
-            ...req.body,
-            id: id
-          };
-          securityData[index] = updatedItem;
-          console.log(`[API] PUT - Updated item ${id}: ${updatedItem.name}`);
-          return res.status(200).json(updatedItem);
-        } else {
-          console.log(`[API] PUT - Item ${id} not found`);
-          return res.status(404).json({ error: `Object with id ${id} not found` });
-        }
-      } else {
+      if (id === null) {
         return res.status(400).json({ error: 'ID is required for PUT request' });
       }
-    }
-    
-    // DELETE запросы (удаление)
-    if (req.method === 'DELETE') {
-      if (id !== null) {
-        const index = securityData.findIndex(item => item.id === id);
-        if (index !== -1) {
-          const deletedItem = securityData[index];
-          securityData.splice(index, 1);
-          console.log(`[API] DELETE - Deleted item ${id}: ${deletedItem.name}`);
-          return res.status(200).json({ 
-            message: 'Object deleted successfully',
-            deleted: deletedItem
-          });
-        } else {
-          console.log(`[API] DELETE - Item ${id} not found`);
-          return res.status(404).json({ error: `Object with id ${id} not found` });
-        }
+      
+      const index = securityData.findIndex(item => item.id === id);
+      if (index !== -1) {
+        const updatedItem = {
+          ...securityData[index],
+          ...body,
+          id: id // гарантируем, что ID не изменится
+        };
+        securityData[index] = updatedItem;
+        console.log(`[API] PUT /${id} - Updated: ${updatedItem.name}`);
+        return res.status(200).json(updatedItem);
       } else {
-        return res.status(400).json({ error: 'ID is required for DELETE request' });
+        console.log(`[API] PUT /${id} - Not found`);
+        return res.status(404).json({ error: `Object with id ${id} not found` });
       }
     }
     
+    // ==================== DELETE ====================
+    if (req.method === 'DELETE') {
+      if (id === null) {
+        return res.status(400).json({ error: 'ID is required for DELETE request' });
+      }
+      
+      const index = securityData.findIndex(item => item.id === id);
+      if (index !== -1) {
+        const deletedItem = securityData.splice(index, 1)[0];
+        console.log(`[API] DELETE /${id} - Deleted: ${deletedItem.name}`);
+        return res.status(200).json({ 
+          message: 'Object deleted successfully',
+          deleted: deletedItem
+        });
+      } else {
+        console.log(`[API] DELETE /${id} - Not found`);
+        return res.status(404).json({ error: `Object with id ${id} not found` });
+      }
+    }
+    
+    // Метод не поддерживается
     return res.status(405).json({ error: 'Method not allowed' });
     
   } catch (error) {
-    console.error('[API] Error:', error);
-    return res.status(500).json({ error: 'Internal server error', details: error.message });
+    console.error('[API] Critical Error:', error);
+    return res.status(500).json({ 
+      error: 'Internal server error', 
+      details: error.message 
+    });
   }
 };
