@@ -1,17 +1,17 @@
-import React, { useState, useEffect } from 'react';
-import { useParams, useNavigate, Link } from 'react-router-dom';
+import React, { useState, useEffect, useCallback } from 'react';
+import { useParams, Link } from 'react-router-dom';
 import { securityAPI } from '../services/api';
 import ClipLoader from 'react-spinners/ClipLoader';
 import ErrorDisplay from '../components/ErrorDisplay';
 
 const Detail = () => {
   const { id } = useParams();
-  const navigate = useNavigate(); // Оставляем, так как используется в будущем
   const [securityObject, setSecurityObject] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  const loadSecurityObject = async () => {
+  // Используем useCallback для мемоизации функции
+  const loadSecurityObject = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
@@ -22,11 +22,11 @@ const Detail = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [id]);
 
   useEffect(() => {
     loadSecurityObject();
-  }, [id]); // Убираем зависимость от loadSecurityObject
+  }, [loadSecurityObject]);
 
   const getStatusColor = (status) => {
     switch(status) {
