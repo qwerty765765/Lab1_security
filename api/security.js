@@ -1,5 +1,4 @@
-
-// Хранилище данных в памяти (in-memory)
+// Хранилище данных в памяти
 let securityData = [
   {
     "id": 1,
@@ -58,59 +57,62 @@ let securityData = [
   }
 ];
 
-// Функция для получения следующего ID
+// Вычисляем следующий ID на основе существующих данных
 const getNextId = () => {
-  if (securityData.length === 0) return 1;
-  const maxId = Math.max(...securityData.map(item => item.id));
+  const maxId = Math.max(...securityData.map(item => item.id), 0);
   return maxId + 1;
 };
 
-// Обработчик запросов
 module.exports = async (req, res) => {
   // Настройка CORS
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
   
-  // Обработка preflight запросов (OPTIONS)
   if (req.method === 'OPTIONS') {
-    res.status(200).end();
-    return;
+    return res.status(200).end();
   }
   
   try {
-    // Получаем путь и ID
-    const path = req.url.split('?')[0];
-    const pathParts = path.split('/').filter(p => p !== '');
-    const id = pathParts[pathParts.length - 1];
+    // Получаем ID из URL (поддержка /api/security и /api/security/1)
+    const url = req.url;
+    const parts = url.split('/').filter(p => p !== '');
+    let id = null;
     
-    console.log(`[API] Method: ${req.method}, ID: ${id}, Path: ${path}`);
+    // Если последняя часть это число, то это ID
+    const lastPart = parts[parts.length - 1];
+    if (lastPart && !isNaN(parseInt(lastPart))) {
+      id = parseInt(lastPart);
+    }
+    
+    console.log(`[API] ${req.method} ${url} - ID: ${id}`);
     
     // GET запросы
     if (req.method === 'GET') {
-      // Если есть ID и это число
-      if (id && !isNaN(parseInt(id))) {
-        const item = securityData.find(item => item.id === parseInt(id));
+      if (id !== null) {
+        // Получение одного объекта по ID
+        const item = securityData.find(item => item.id === id);
         if (item) {
-          console.log(`[API] GET /${id} - Found: ${item.name}`);
+          console.log(`[API] GET - Found item ${id}: ${item.name}`);
           return res.status(200).json(item);
         } else {
-          console.log(`[API] GET /${id} - Not found`);
-          return res.status(404).json({ error: 'Object not found' });
+          console.log(`[API] GET - Item ${id} not found`);
+          return res.status(404).json({ error: `Object with id ${id} not found` });
         }
       } else {
-        // Возвращаем все объекты
-        console.log(`[API] GET / - Returning ${securityData.length} items`);
+        // Получение всех объектов
+        console.log(`[API] GET - Returning ${securityData.length} items`);
         return res.status(200).json(securityData);
       }
     }
     
     // POST запросы (создание)
     if (req.method === 'POST') {
-      console.log('[API] POST - Creating new item:', req.body);
+      const newId = getNextId();
+      console.log(`[API] POST - Creating new item with id ${newId}`, req.body);
       
       const newItem = {
-        id: getNextId(),
+        id: newId,
         name: req.body.name || '',
         type: req.body.type || '',
         address: req.body.address || '',
@@ -122,61 +124,57 @@ module.exports = async (req, res) => {
       };
       
       securityData.push(newItem);
-      console.log(`[API] POST - Created item with id ${newItem.id}: ${newItem.name}`);
+      console.log(`[API] POST - Created: ${newItem.name}`);
       return res.status(201).json(newItem);
     }
     
     // PUT запросы (обновление)
     if (req.method === 'PUT') {
-      if (id && !isNaN(parseInt(id))) {
-        const index = securityData.findIndex(item => item.id === parseInt(id));
+      if (id !== null) {
+        const index = securityData.findIndex(item => item.id === id);
         if (index !== -1) {
           const updatedItem = {
             ...securityData[index],
             ...req.body,
-            id: parseInt(id)
+            id: id
           };
           securityData[index] = updatedItem;
-          console.log(`[API] PUT /${id} - Updated: ${updatedItem.name}`);
+          console.log(`[API] PUT - Updated item ${id}: ${updatedItem.name}`);
           return res.status(200).json(updatedItem);
         } else {
-          console.log(`[API] PUT /${id} - Not found`);
-          return res.status(404).json({ error: 'Object not found' });
+          console.log(`[API] PUT - Item ${id} not found`);
+          return res.status(404).json({ error: `Object with id ${id} not found` });
         }
       } else {
-        return res.status(400).json({ error: 'Invalid ID' });
+        return res.status(400).json({ error: 'ID is required for PUT request' });
       }
     }
     
     // DELETE запросы (удаление)
     if (req.method === 'DELETE') {
-      if (id && !isNaN(parseInt(id))) {
-        const index = securityData.findIndex(item => item.id === parseInt(id));
+      if (id !== null) {
+        const index = securityData.findIndex(item => item.id === id);
         if (index !== -1) {
           const deletedItem = securityData[index];
           securityData.splice(index, 1);
-          console.log(`[API] DELETE /${id} - Deleted: ${deletedItem.name}`);
+          console.log(`[API] DELETE - Deleted item ${id}: ${deletedItem.name}`);
           return res.status(200).json({ 
-            message: 'Object deleted successfully', 
-            deleted: deletedItem 
+            message: 'Object deleted successfully',
+            deleted: deletedItem
           });
         } else {
-          console.log(`[API] DELETE /${id} - Not found`);
-          return res.status(404).json({ error: 'Object not found' });
+          console.log(`[API] DELETE - Item ${id} not found`);
+          return res.status(404).json({ error: `Object with id ${id} not found` });
         }
       } else {
-        return res.status(400).json({ error: 'Invalid ID' });
+        return res.status(400).json({ error: 'ID is required for DELETE request' });
       }
     }
     
-    // Если метод не поддерживается
     return res.status(405).json({ error: 'Method not allowed' });
     
   } catch (error) {
     console.error('[API] Error:', error);
-    return res.status(500).json({ 
-      error: 'Internal server error', 
-      details: error.message 
-    });
+    return res.status(500).json({ error: 'Internal server error', details: error.message });
   }
 };
