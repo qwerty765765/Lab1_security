@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from 'react';
+
+import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { securityAPI } from '../services/api';
 import ClipLoader from 'react-spinners/ClipLoader';
@@ -24,15 +25,15 @@ const Form = () => {
   const [error, setError] = useState(null);
   const [validationErrors, setValidationErrors] = useState({});
 
-  // Функция для валидации номера телефона (упрощенная версия без экранирования)
+  // Функция для валидации номера телефона
   const validatePhoneNumber = (phone) => {
     if (!phone) return true;
-    // Упрощенная проверка: номер должен содержать только цифры, пробелы, +, -, (, )
     const digits = phone.replace(/\D/g, '');
     return digits.length === 11 || digits.length === 10;
   };
 
-  const loadSecurityObject = async () => {
+  // Используем useCallback для мемоизации функции
+  const loadSecurityObject = useCallback(async () => {
     try {
       setLoading(true);
       const data = await securityAPI.getById(id);
@@ -51,13 +52,13 @@ const Form = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [id]);
 
   useEffect(() => {
     if (isEditMode) {
       loadSecurityObject();
     }
-  }, [id, isEditMode]); // Добавляем isEditMode в зависимости
+  }, [isEditMode, loadSecurityObject]);
 
   const validateForm = () => {
     const errors = {};
@@ -151,10 +152,9 @@ const Form = () => {
     }
   };
 
-  // Упрощенная функция форматирования телефона
+  // Функция форматирования телефона
   const handlePhoneChange = (e) => {
     let value = e.target.value;
-    // Удаляем все нецифровые символы
     const digits = value.replace(/\D/g, '');
     
     let formatted = value;
