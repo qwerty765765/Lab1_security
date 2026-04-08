@@ -9,3 +9,7 @@ root.render(
     <App />
   </React.StrictMode>
 );
+.ymaps-2-1-79-map {
+  width: 100% !important;
+  height: 100% !important;
+}
