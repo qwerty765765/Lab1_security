@@ -8,7 +8,7 @@ const YandexMap = ({ address, height = '350px' }) => {
   const [error, setError] = useState(false);
   const [foundAddress, setFoundAddress] = useState('');
 
-  // Ваш API-ключ (скопирован из сообщения)
+  // ✅ ВАШ НОВЫЙ РАБОЧИЙ КЛЮЧ (замените, если нужно)
   const YANDEX_API_KEY = '5f4a6554-9ed8-4a68-b2b3-2d2f6118d973';
 
   useEffect(() => {
@@ -23,21 +23,28 @@ const YandexMap = ({ address, height = '350px' }) => {
       setCoordinates(null);
 
       try {
-        const response = await fetch(
-          `https://geocode-maps.yandex.ru/1.x/?apikey=${YANDEX_API_KEY}&geocode=${encodeURIComponent(address)}&format=json`
-        );
+        // ✅ ЯВНЫЙ ЗАПРОС К ГЕОКОДЕРУ С ВАШИМ КЛЮЧОМ
+        const url = `https://geocode-maps.yandex.ru/1.x/?apikey=${YANDEX_API_KEY}&geocode=${encodeURIComponent(address)}&format=json`;
+        const response = await fetch(url);
         const data = await response.json();
 
+        // Проверяем, есть ли ошибка в ответе
+        if (data.error) {
+          console.error('API Error:', data.error);
+          setError(true);
+          setLoading(false);
+          return;
+        }
+
         const geoObject = data.response.GeoObjectCollection.featureMember[0];
-        
+
         if (geoObject) {
           const position = geoObject.GeoObject.Point.pos.split(' ');
-          const formattedAddress = geoObject.GeoObject.metaDataProperty.GeocoderMetaData.text;
-          
-          // Яндекс возвращает "Долгота Широта", меняем местами для карты
+          // Яндекс возвращает "Долгота Широта", а карте нужно [Широта, Долгота]
           setCoordinates([parseFloat(position[1]), parseFloat(position[0])]);
-          setFoundAddress(formattedAddress);
+          setFoundAddress(geoObject.GeoObject.metaDataProperty.GeocoderMetaData.text);
         } else {
+          console.log('Адрес не найден:', address);
           setError(true);
         }
       } catch (err) {
@@ -100,33 +107,38 @@ const YandexMap = ({ address, height = '350px' }) => {
     );
   }
 
-  // Показываем ошибку
+  // Показываем ошибку, если адрес не найден
   if (error || !coordinates) {
     return (
       <div style={{ 
         height, 
-        background: '#f8d7da', 
+        background: '#fff3cd', 
         display: 'flex', 
         alignItems: 'center', 
         justifyContent: 'center',
         flexDirection: 'column',
         borderRadius: '8px',
-        color: '#721c24'
+        color: '#856404',
+        padding: '15px',
+        textAlign: 'center'
       }}>
         <span style={{ fontSize: '24px' }}>⚠️</span>
         <span>Адрес не найден на карте</span>
         <small style={{ fontSize: '12px', marginTop: '5px' }}>{address}</small>
+        <small style={{ fontSize: '11px', marginTop: '10px', color: '#999' }}>
+          💡 Попробуйте указать более точный адрес
+        </small>
       </div>
     );
   }
 
-  // Отображаем карту
+  // Отображаем карту с меткой
   return (
     <div style={{ marginTop: '15px' }}>
       <label style={{ display: 'block', marginBottom: '8px', fontWeight: 'bold', color: '#333' }}>
         🗺️ Расположение на карте:
       </label>
-      <YMaps enterprise query={{ apikey: YANDEX_API_KEY }}>
+      <YMaps query={{ apikey: YANDEX_API_KEY }}>
         <Map
           state={{ center: coordinates, zoom: 16, controls: ['zoomControl', 'fullscreenControl'] }}
           width="100%"
