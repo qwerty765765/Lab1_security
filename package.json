@@ -36,7 +36,7 @@
     ]
   },
   "devDependencies": {
-    "json-server": "^0.17.4"
+    "json-server": "^0.17.4",
     "@pbe/react-yandex-maps": "^1.2.1"
   }
 }
