@@ -1,17 +1,23 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { useParams, Link } from 'react-router-dom';
+// src/pages/Detail.js
+import React, { useState, useEffect } from 'react';
+import { useParams, useNavigate, Link } from 'react-router-dom';
 import { securityAPI } from '../services/api';
 import ClipLoader from 'react-spinners/ClipLoader';
 import ErrorDisplay from '../components/ErrorDisplay';
+import YandexMap from '../components/YandexMap';  // 👈 Добавляем импорт
 
 const Detail = () => {
   const { id } = useParams();
+  const navigate = useNavigate();
   const [securityObject, setSecurityObject] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  // Используем useCallback для мемоизации функции
-  const loadSecurityObject = useCallback(async () => {
+  useEffect(() => {
+    loadSecurityObject();
+  }, [id]);
+
+  const loadSecurityObject = async () => {
     try {
       setLoading(true);
       setError(null);
@@ -22,11 +28,7 @@ const Detail = () => {
     } finally {
       setLoading(false);
     }
-  }, [id]);
-
-  useEffect(() => {
-    loadSecurityObject();
-  }, [loadSecurityObject]);
+  };
 
   const getStatusColor = (status) => {
     switch(status) {
@@ -94,8 +96,12 @@ const Detail = () => {
         
         <div className="form-group">
           <label>📍 Адрес:</label>
-          <p>{securityObject.address}</p>
+          <p><strong>{securityObject.address}</strong></p>
         </div>
+        
+        {/* 👇 ВСТАВКА КАРТЫ - по адресу из объекта 👇 */}
+        <YandexMap address={securityObject.address} height="350px" />
+        {/* 👆 КОНЕЦ ВСТАВКИ 👆 */}
         
         <div className="form-group">
           <label>📹 Количество камер видеонаблюдения:</label>
