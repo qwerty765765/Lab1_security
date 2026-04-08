@@ -98,7 +98,7 @@ const Detail = () => {
           <p><strong>{securityObject.address}</strong></p>
         </div>
         
-        <YandexMap address={securityObject.address} height="350px" />
+        <YandexMap address={securityObject.address} height="550px" />
         
         <div className="form-group">
           <label>📹 Количество камер видеонаблюдения:</label>
