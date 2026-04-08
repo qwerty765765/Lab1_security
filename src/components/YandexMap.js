@@ -9,7 +9,7 @@ const YandexMap = ({ address, height = '350px' }) => {
   const [foundAddress, setFoundAddress] = useState('');
 
   // Ваш API-ключ (скопирован из сообщения)
-  const YANDEX_API_KEY = 'd4aed16a-fc62-4a39-b2fa-498c7cff8bef';
+  const YANDEX_API_KEY = '5f4a6554-9ed8-4a68-b2b3-2d2f6118d973';
 
   useEffect(() => {
     if (!address) {
