@@ -1,23 +1,18 @@
-// src/pages/Detail.js
-import React, { useState, useEffect } from 'react';
-import { useParams, useNavigate, Link } from 'react-router-dom';
+import React, { useState, useEffect, useCallback } from 'react';
+import { useParams, Link } from 'react-router-dom';  // Убрали navigate, так как не используется
 import { securityAPI } from '../services/api';
 import ClipLoader from 'react-spinners/ClipLoader';
 import ErrorDisplay from '../components/ErrorDisplay';
-import YandexMap from '../components/YandexMap';  // 👈 Добавляем импорт
+import YandexMap from '../components/YandexMap';
 
 const Detail = () => {
   const { id } = useParams();
-  const navigate = useNavigate();
   const [securityObject, setSecurityObject] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  useEffect(() => {
-    loadSecurityObject();
-  }, [id]);
-
-  const loadSecurityObject = async () => {
+  // Оборачиваем функцию в useCallback, чтобы она не менялась при каждом рендере
+  const loadSecurityObject = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
@@ -28,7 +23,11 @@ const Detail = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [id]);
+
+  useEffect(() => {
+    loadSecurityObject();
+  }, [loadSecurityObject]); // Теперь зависимость корректная
 
   const getStatusColor = (status) => {
     switch(status) {
@@ -99,9 +98,7 @@ const Detail = () => {
           <p><strong>{securityObject.address}</strong></p>
         </div>
         
-        {/* 👇 ВСТАВКА КАРТЫ - по адресу из объекта 👇 */}
         <YandexMap address={securityObject.address} height="350px" />
-        {/* 👆 КОНЕЦ ВСТАВКИ 👆 */}
         
         <div className="form-group">
           <label>📹 Количество камер видеонаблюдения:</label>
