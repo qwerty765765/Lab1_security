@@ -359,3 +359,17 @@ textarea.form-control {
   cursor: not-allowed;
   transform: none;
 }
+.ymaps-2-1-79-map,
+.ymaps-2-1-79-map-container,
+.ymaps-2-1-79-map-container > div {
+  height: 450px !important;
+  min-height: 450px !important;
+}
+
+/* Для контейнера карты в карточке */
+.card .yandex-map-container {
+  height: 450px !important;
+  min-height: 450px !important;
+  position: relative !important;
+  width: 100% !important;
+}
