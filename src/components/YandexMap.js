@@ -126,7 +126,7 @@ const YandexMap = ({ address, height = '350px' }) => {
       <label style={{ display: 'block', marginBottom: '8px', fontWeight: 'bold', color: '#333' }}>
         🗺️ Расположение на карте:
       </label>
-      <YMaps query={{ apikey: YANDEX_API_KEY }}>
+      <YMaps enterprise query={{ apikey: YANDEX_API_KEY }}>
         <Map
           state={{ center: coordinates, zoom: 16, controls: ['zoomControl', 'fullscreenControl'] }}
           width="100%"
