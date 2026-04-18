@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { securityAPI } from '../services/api';
 import ClipLoader from 'react-spinners/ClipLoader';
 import ErrorDisplay from '../components/ErrorDisplay';
+import { calculatePrice, PRICE_CONFIG, formatPrice } from '../services/buildingService';
 
 const Home = () => {
   const [securityObjects, setSecurityObjects] = useState([]);
@@ -84,32 +85,57 @@ const Home = () => {
       )}
 
       <div className="security-list">
-        {securityObjects.map(item => (
-          <div key={item.id} className="security-card">
-            <h3>{item.name}</h3>
-            <p><strong>Тип:</strong> {item.type}</p>
-            <p><strong>Адрес:</strong> {item.address}</p>
-            <p><strong>📹 Камеры:</strong> {item.cameras}</p>
-            <p><strong>👥 Персонал:</strong> {item.staff} чел.</p>
-            <div className={`status ${getStatusColor(item.status)}`}>
-              {getStatusText(item.status)}
+        {securityObjects.map(item => {
+          const priceInfo = item.buildingType ? calculatePrice(item.buildingType, item.cameras, item.staff) : null;
+          
+          return (
+            <div key={item.id} className="security-card">
+              <h3>{item.name}</h3>
+              <p><strong>Тип:</strong> {item.type}</p>
+              <p><strong>Адрес:</strong> {item.address}</p>
+              <p><strong>📹 Камеры:</strong> {item.cameras}</p>
+              <p><strong>👥 Персонал:</strong> {item.staff} чел.</p>
+              
+              {/* Отображение стоимости */}
+              {item.buildingType && priceInfo && (
+                <div style={{ 
+                  marginTop: '10px', 
+                  padding: '8px', 
+                  background: '#f0f7ff', 
+                  borderRadius: '6px',
+                  fontSize: '13px'
+                }}>
+                  <strong>💰 Стоимость охраны:</strong><br/>
+                  <span style={{ fontSize: '16px', color: '#28a745', fontWeight: 'bold' }}>
+                    {formatPrice(priceInfo.total)}/мес
+                  </span>
+                  <br/>
+                  <small style={{ color: '#666' }}>
+                    ({PRICE_CONFIG[item.buildingType]?.name})
+                  </small>
+                </div>
+              )}
+              
+              <div className={`status ${getStatusColor(item.status)}`}>
+                {getStatusText(item.status)}
+              </div>
+              <div className="card-actions">
+                <Link to={`/detail/${item.id}`} className="btn btn-primary">
+                  Подробнее
+                </Link>
+                <Link to={`/edit/${item.id}`} className="btn btn-warning">
+                  ✏️ Редактировать
+                </Link>
+                <button 
+                  onClick={() => handleDelete(item.id, item.name)} 
+                  className="btn btn-danger"
+                >
+                  🗑️ Удалить
+                </button>
+              </div>
             </div>
-            <div className="card-actions">
-              <Link to={`/detail/${item.id}`} className="btn btn-primary">
-                Подробнее
-              </Link>
-              <Link to={`/edit/${item.id}`} className="btn btn-warning">
-                ✏️ Редактировать
-              </Link>
-              <button 
-                onClick={() => handleDelete(item.id, item.name)} 
-                className="btn btn-danger"
-              >
-                🗑️ Удалить
-              </button>
-            </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
       
       {securityObjects.length === 0 && !loading && (
