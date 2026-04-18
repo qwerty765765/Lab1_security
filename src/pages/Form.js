@@ -35,7 +35,7 @@ const Form = () => {
     
     // Исправленные регулярные выражения (без лишних экранирований)
     const phoneRegex = /^(\+7|8)[\s-]?\(?[0-9]{3}\)?[\s-]?[0-9]{3}[\s-]?[0-9]{2}[\s-]?[0-9]{2}$/;
-    const simplePhoneRegex = /^[\+\d\s()-]{10,20}$/;
+    const simplePhoneRegex = /^[+\d\s()-]{10,20}$/;
     
     if (!phoneRegex.test(phone) && !simplePhoneRegex.test(phone)) {
       return false;
