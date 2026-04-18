@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { useParams, useNavigate, Link } from 'react-router-dom';
+import React, { useState, useEffect, useCallback } from 'react';
+import { useParams, Link } from 'react-router-dom';  // убрали useNavigate
 import { securityAPI } from '../services/api';
 import ClipLoader from 'react-spinners/ClipLoader';
 import ErrorDisplay from '../components/ErrorDisplay';
@@ -8,16 +8,12 @@ import { calculatePrice, PRICE_CONFIG, formatPrice } from '../services/buildingS
 
 const Detail = () => {
   const { id } = useParams();
-  const navigate = useNavigate();
+  // const navigate = useNavigate();  // удалено, т.к. не используется
   const [securityObject, setSecurityObject] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  useEffect(() => {
-    loadSecurityObject();
-  }, [id]);
-
-  const loadSecurityObject = async () => {
+  const loadSecurityObject = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
@@ -28,7 +24,11 @@ const Detail = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [id]);
+
+  useEffect(() => {
+    loadSecurityObject();
+  }, [loadSecurityObject]);
 
   const getStatusColor = (status) => {
     switch(status) {
@@ -115,13 +115,11 @@ const Detail = () => {
           <p>{securityObject.staff} чел.</p>
         </div>
         
-        {/* Блок с информацией о типе здания и стоимости */}
         {securityObject.buildingType && priceInfo && (
           <>
             <div className="form-group">
               <label>🏢 Тип здания:</label>
               <p><strong>{PRICE_CONFIG[securityObject.buildingType]?.name}</strong></p>
-              <small style={{ color: '#666' }}>{PRICE_CONFIG[securityObject.buildingType]?.description}</small>
             </div>
             
             <div className="form-group" style={{ 
@@ -131,7 +129,7 @@ const Detail = () => {
               marginTop: '10px'
             }}>
               <label style={{ fontWeight: 'bold', marginBottom: '10px', display: 'block' }}>
-                💰 Детальный расчет стоимости охраны в месяц
+                💰 Расчет стоимости охраны в месяц
               </label>
               
               <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
