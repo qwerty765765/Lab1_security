@@ -1,9 +1,9 @@
-
 import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { securityAPI } from '../services/api';
 import ClipLoader from 'react-spinners/ClipLoader';
 import ErrorDisplay from '../components/ErrorDisplay';
+import { detectBuildingType, calculatePrice, PRICE_CONFIG, formatPrice } from '../services/buildingService';
 
 const Form = () => {
   const { id } = useParams();
@@ -18,22 +18,55 @@ const Form = () => {
     staff: '',
     status: 'active',
     description: '',
-    emergency_contacts: ''
+    emergency_contacts: '',
+    buildingType: ''
   });
   
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [validationErrors, setValidationErrors] = useState({});
+  const [priceCalculation, setPriceCalculation] = useState(null);
+  const [isDetecting, setIsDetecting] = useState(false);
+  const [detectionInfo, setDetectionInfo] = useState(null);
 
   // Функция для валидации номера телефона
   const validatePhoneNumber = (phone) => {
     if (!phone) return true;
+    
+    const phoneRegex = /^(\+7|8)[\s\-]?\(?[0-9]{3}\)?[\s\-]?[0-9]{3}[\s\-]?[0-9]{2}[\s\-]?[0-9]{2}$/;
+    const simplePhoneRegex = /^[\+\d\s\-\(\)]{10,20}$/;
+    
+    if (!phoneRegex.test(phone) && !simplePhoneRegex.test(phone)) {
+      return false;
+    }
+    
     const digits = phone.replace(/\D/g, '');
-    return digits.length === 11 || digits.length === 10;
+    if (digits.length !== 11 && digits.length !== 10) {
+      return false;
+    }
+    
+    return true;
   };
 
-  // Используем useCallback для мемоизации функции
-  const loadSecurityObject = useCallback(async () => {
+  useEffect(() => {
+    if (isEditMode) {
+      loadSecurityObject();
+    }
+  }, [id]);
+
+  // Обновляем цену при изменении типа, камер или сотрудников
+  useEffect(() => {
+    if (formData.buildingType) {
+      const cameras = Number(formData.cameras) || 0;
+      const staff = Number(formData.staff) || 0;
+      const price = calculatePrice(formData.buildingType, cameras, staff);
+      setPriceCalculation(price);
+    } else {
+      setPriceCalculation(null);
+    }
+  }, [formData.buildingType, formData.cameras, formData.staff]);
+
+  const loadSecurityObject = async () => {
     try {
       setLoading(true);
       const data = await securityAPI.getById(id);
@@ -45,20 +78,15 @@ const Form = () => {
         staff: data.staff || '',
         status: data.status || 'active',
         description: data.description || '',
-        emergency_contacts: data.emergency_contacts || ''
+        emergency_contacts: data.emergency_contacts || '',
+        buildingType: data.buildingType || ''
       });
     } catch (err) {
       setError(err);
     } finally {
       setLoading(false);
     }
-  }, [id]);
-
-  useEffect(() => {
-    if (isEditMode) {
-      loadSecurityObject();
-    }
-  }, [isEditMode, loadSecurityObject]);
+  };
 
   const validateForm = () => {
     const errors = {};
@@ -67,6 +95,8 @@ const Form = () => {
       errors.name = 'Название обязательно для заполнения';
     } else if (formData.name.length < 3) {
       errors.name = 'Название должно содержать минимум 3 символа';
+    } else if (formData.name.length > 100) {
+      errors.name = 'Название не должно превышать 100 символов';
     }
     
     if (!formData.type.trim()) {
@@ -75,24 +105,38 @@ const Form = () => {
     
     if (!formData.address.trim()) {
       errors.address = 'Адрес обязателен для заполнения';
+    } else if (formData.address.length < 5) {
+      errors.address = 'Введите полный адрес (минимум 5 символов)';
     }
     
     if (formData.cameras) {
       const camerasNum = Number(formData.cameras);
-      if (isNaN(camerasNum) || camerasNum < 0 || !Number.isInteger(camerasNum)) {
-        errors.cameras = 'Количество камер должно быть целым положительным числом';
+      if (isNaN(camerasNum)) {
+        errors.cameras = 'Количество камер должно быть числом';
+      } else if (camerasNum < 0) {
+        errors.cameras = 'Количество камер не может быть отрицательным';
+      } else if (!Number.isInteger(camerasNum)) {
+        errors.cameras = 'Количество камер должно быть целым числом';
+      } else if (camerasNum > 1000) {
+        errors.cameras = 'Количество камер не может превышать 1000';
       }
     }
     
     if (formData.staff) {
       const staffNum = Number(formData.staff);
-      if (isNaN(staffNum) || staffNum < 0 || !Number.isInteger(staffNum)) {
-        errors.staff = 'Количество сотрудников должно быть целым положительным числом';
+      if (isNaN(staffNum)) {
+        errors.staff = 'Количество сотрудников должно быть числом';
+      } else if (staffNum < 0) {
+        errors.staff = 'Количество сотрудников не может быть отрицательным';
+      } else if (!Number.isInteger(staffNum)) {
+        errors.staff = 'Количество сотрудников должно быть целым числом';
+      } else if (staffNum > 500) {
+        errors.staff = 'Количество сотрудников не может превышать 500';
       }
     }
     
     if (formData.emergency_contacts && !validatePhoneNumber(formData.emergency_contacts)) {
-      errors.emergency_contacts = 'Введите корректный номер телефона (10 или 11 цифр)';
+      errors.emergency_contacts = 'Введите корректный номер телефона';
     }
     
     setValidationErrors(errors);
@@ -114,6 +158,43 @@ const Form = () => {
     if (error) {
       setError(null);
     }
+  };
+
+  // Автоопределение типа здания
+  const handleAddressAutoDetect = useCallback(async (addressValue) => {
+    if (!addressValue || addressValue.length < 10) return;
+    
+    setIsDetecting(true);
+    setDetectionInfo(null);
+    
+    try {
+      const result = await detectBuildingType(addressValue);
+      setFormData(prev => ({ ...prev, buildingType: result.type }));
+      setDetectionInfo(result);
+    } catch (err) {
+      console.error('Ошибка автоопределения:', err);
+    } finally {
+      setIsDetecting(false);
+    }
+  }, []);
+
+  // Обработчик изменения адреса с debounce
+  const handleAddressChange = (e) => {
+    const value = e.target.value;
+    setFormData(prev => ({ ...prev, address: value }));
+    
+    if (validationErrors.address) {
+      setValidationErrors(prev => ({ ...prev, address: null }));
+    }
+    
+    clearTimeout(window.addressTimeout);
+    window.addressTimeout = setTimeout(() => {
+      handleAddressAutoDetect(value);
+    }, 800);
+  };
+
+  const handleBuildingTypeChange = (e) => {
+    setFormData(prev => ({ ...prev, buildingType: e.target.value }));
   };
 
   const handleSubmit = async (e) => {
@@ -152,31 +233,30 @@ const Form = () => {
     }
   };
 
-  // Функция форматирования телефона
-  const handlePhoneChange = (e) => {
-    let value = e.target.value;
+  const formatPhoneNumber = (value) => {
     const digits = value.replace(/\D/g, '');
     
-    let formatted = value;
-    if (digits.length > 0) {
-      if (digits.length <= 1) {
-        formatted = digits;
-      } else if (digits.length <= 4) {
-        formatted = `+7 (${digits.slice(1)})`;
-      } else if (digits.length <= 7) {
-        formatted = `+7 (${digits.slice(1, 4)}) ${digits.slice(4)}`;
-      } else if (digits.length <= 9) {
-        formatted = `+7 (${digits.slice(1, 4)}) ${digits.slice(4, 7)}-${digits.slice(7)}`;
-      } else {
-        formatted = `+7 (${digits.slice(1, 4)}) ${digits.slice(4, 7)}-${digits.slice(7, 9)}-${digits.slice(9, 11)}`;
-      }
-    }
+    if (digits.length === 0) return '';
     
+    if (digits.length <= 1) {
+      return digits;
+    } else if (digits.length <= 4) {
+      return `+7 (${digits.slice(1)})`;
+    } else if (digits.length <= 7) {
+      return `+7 (${digits.slice(1, 4)}) ${digits.slice(4)}`;
+    } else if (digits.length <= 9) {
+      return `+7 (${digits.slice(1, 4)}) ${digits.slice(4, 7)}-${digits.slice(7)}`;
+    } else {
+      return `+7 (${digits.slice(1, 4)}) ${digits.slice(4, 7)}-${digits.slice(7, 9)}-${digits.slice(9, 11)}`;
+    }
+  };
+
+  const handlePhoneChange = (e) => {
+    const formatted = formatPhoneNumber(e.target.value);
     setFormData(prev => ({
       ...prev,
       emergency_contacts: formatted
     }));
-    
     if (validationErrors.emergency_contacts) {
       setValidationErrors(prev => ({
         ...prev,
@@ -216,6 +296,9 @@ const Form = () => {
           {validationErrors.name && (
             <span className="error-message">{validationErrors.name}</span>
           )}
+          <small style={{ color: '#666', fontSize: '12px' }}>
+            {formData.name.length}/100 символов
+          </small>
         </div>
         
         <div className="form-group">
@@ -244,14 +327,92 @@ const Form = () => {
             type="text"
             name="address"
             value={formData.address}
-            onChange={handleChange}
+            onChange={handleAddressChange}
             className={`form-control ${validationErrors.address ? 'error' : ''}`}
-            placeholder="ул. Примерная, д. 1"
+            placeholder="г. Новосибирск, ул. Примерная, д. 1"
           />
           {validationErrors.address && (
             <span className="error-message">{validationErrors.address}</span>
           )}
+          {isDetecting && (
+            <small style={{ color: '#667eea', display: 'block', marginTop: '5px' }}>
+              🔍 Определяем тип здания...
+            </small>
+          )}
+          {detectionInfo && detectionInfo.source === 'auto' && (
+            <small style={{ color: '#28a745', display: 'block', marginTop: '5px' }}>
+              ✅ Автоматически определен тип: {PRICE_CONFIG[formData.buildingType]?.name}
+            </small>
+          )}
         </div>
+        
+        {/* Блок выбора типа здания */}
+        <div className="form-group">
+          <label>🏢 Тип здания</label>
+          <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
+            <select
+              value={formData.buildingType}
+              onChange={handleBuildingTypeChange}
+              className="form-control"
+              style={{ flex: 2 }}
+            >
+              <option value="">Выберите тип здания</option>
+              {Object.entries(PRICE_CONFIG).map(([key, config]) => (
+                <option key={key} value={key}>{config.name}</option>
+              ))}
+            </select>
+            
+            <button
+              type="button"
+              onClick={() => handleAddressAutoDetect(formData.address)}
+              disabled={isDetecting || !formData.address}
+              className="btn btn-primary"
+              style={{ flex: 1 }}
+            >
+              {isDetecting ? '🔍 Определяю...' : '🔍 Автоопределение'}
+            </button>
+          </div>
+          
+          {formData.buildingType && (
+            <small style={{ color: '#666', display: 'block', marginTop: '5px' }}>
+              {PRICE_CONFIG[formData.buildingType]?.description}
+            </small>
+          )}
+        </div>
+        
+        {/* Блок расчета стоимости */}
+        {formData.buildingType && priceCalculation && (
+          <div className="form-group" style={{ 
+            background: '#f0f7ff', 
+            padding: '15px', 
+            borderRadius: '8px',
+            marginTop: '15px'
+          }}>
+            <label style={{ fontWeight: 'bold', marginBottom: '10px', display: 'block' }}>
+              💰 Расчет стоимости охраны в месяц
+            </label>
+            
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                <span>Базовая ставка ({PRICE_CONFIG[formData.buildingType]?.name}):</span>
+                <strong>{formatPrice(priceCalculation.base)}</strong>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                <span>Камеры видеонаблюдения ({formData.cameras || 0} шт. × {formatPrice(PRICE_CONFIG[formData.buildingType]?.perCamera)}):</span>
+                <strong>{formatPrice(priceCalculation.camerasCost)}</strong>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                <span>Сотрудники охраны ({formData.staff || 0} чел. × {formatPrice(PRICE_CONFIG[formData.buildingType]?.perStaff)}):</span>
+                <strong>{formatPrice(priceCalculation.staffCost)}</strong>
+              </div>
+              <hr style={{ margin: '8px 0' }} />
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '18px', fontWeight: 'bold' }}>
+                <span>ИТОГО в месяц:</span>
+                <span style={{ color: '#28a745' }}>{formatPrice(priceCalculation.total)}</span>
+              </div>
+            </div>
+          </div>
+        )}
         
         <div className="form-group">
           <label>Количество камер видеонаблюдения</label>
@@ -263,11 +424,15 @@ const Form = () => {
             className={`form-control ${validationErrors.cameras ? 'error' : ''}`}
             placeholder="0"
             min="0"
+            max="1000"
             step="1"
           />
           {validationErrors.cameras && (
             <span className="error-message">{validationErrors.cameras}</span>
           )}
+          <small style={{ color: '#666', fontSize: '12px' }}>
+            От 0 до 1000 камер
+          </small>
         </div>
         
         <div className="form-group">
@@ -280,11 +445,15 @@ const Form = () => {
             className={`form-control ${validationErrors.staff ? 'error' : ''}`}
             placeholder="0"
             min="0"
+            max="500"
             step="1"
           />
           {validationErrors.staff && (
             <span className="error-message">{validationErrors.staff}</span>
           )}
+          <small style={{ color: '#666', fontSize: '12px' }}>
+            От 0 до 500 сотрудников
+          </small>
         </div>
         
         <div className="form-group">
@@ -312,6 +481,9 @@ const Form = () => {
             placeholder="Дополнительная информация о системе безопасности..."
             maxLength="500"
           />
+          <small style={{ color: '#666', fontSize: '12px' }}>
+            {formData.description.length}/500 символов
+          </small>
         </div>
         
         <div className="form-group">
