@@ -1,18 +1,23 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { useParams, Link } from 'react-router-dom';  // Убрали navigate, так как не используется
+import React, { useState, useEffect } from 'react';
+import { useParams, useNavigate, Link } from 'react-router-dom';
 import { securityAPI } from '../services/api';
 import ClipLoader from 'react-spinners/ClipLoader';
 import ErrorDisplay from '../components/ErrorDisplay';
 import YandexMap from '../components/YandexMap';
+import { calculatePrice, PRICE_CONFIG, formatPrice } from '../services/buildingService';
 
 const Detail = () => {
   const { id } = useParams();
+  const navigate = useNavigate();
   const [securityObject, setSecurityObject] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  // Оборачиваем функцию в useCallback, чтобы она не менялась при каждом рендере
-  const loadSecurityObject = useCallback(async () => {
+  useEffect(() => {
+    loadSecurityObject();
+  }, [id]);
+
+  const loadSecurityObject = async () => {
     try {
       setLoading(true);
       setError(null);
@@ -23,11 +28,7 @@ const Detail = () => {
     } finally {
       setLoading(false);
     }
-  }, [id]);
-
-  useEffect(() => {
-    loadSecurityObject();
-  }, [loadSecurityObject]); // Теперь зависимость корректная
+  };
 
   const getStatusColor = (status) => {
     switch(status) {
@@ -80,6 +81,10 @@ const Detail = () => {
     );
   }
 
+  const priceInfo = securityObject.buildingType 
+    ? calculatePrice(securityObject.buildingType, securityObject.cameras, securityObject.staff) 
+    : null;
+
   return (
     <div>
       <div className="card">
@@ -98,7 +103,7 @@ const Detail = () => {
           <p><strong>{securityObject.address}</strong></p>
         </div>
         
-        <YandexMap address={securityObject.address} height="550px" />
+        <YandexMap address={securityObject.address} height="400px" />
         
         <div className="form-group">
           <label>📹 Количество камер видеонаблюдения:</label>
@@ -109,6 +114,48 @@ const Detail = () => {
           <label>👥 Количество сотрудников охраны:</label>
           <p>{securityObject.staff} чел.</p>
         </div>
+        
+        {/* Блок с информацией о типе здания и стоимости */}
+        {securityObject.buildingType && priceInfo && (
+          <>
+            <div className="form-group">
+              <label>🏢 Тип здания:</label>
+              <p><strong>{PRICE_CONFIG[securityObject.buildingType]?.name}</strong></p>
+              <small style={{ color: '#666' }}>{PRICE_CONFIG[securityObject.buildingType]?.description}</small>
+            </div>
+            
+            <div className="form-group" style={{ 
+              background: '#f0f7ff', 
+              padding: '15px', 
+              borderRadius: '8px',
+              marginTop: '10px'
+            }}>
+              <label style={{ fontWeight: 'bold', marginBottom: '10px', display: 'block' }}>
+                💰 Детальный расчет стоимости охраны в месяц
+              </label>
+              
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                  <span>Базовая ставка ({PRICE_CONFIG[securityObject.buildingType]?.name}):</span>
+                  <strong>{formatPrice(priceInfo.base)}</strong>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                  <span>Камеры ({securityObject.cameras} шт. × {formatPrice(PRICE_CONFIG[securityObject.buildingType]?.perCamera)}):</span>
+                  <strong>{formatPrice(priceInfo.camerasCost)}</strong>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                  <span>Сотрудники ({securityObject.staff} чел. × {formatPrice(PRICE_CONFIG[securityObject.buildingType]?.perStaff)}):</span>
+                  <strong>{formatPrice(priceInfo.staffCost)}</strong>
+                </div>
+                <hr style={{ margin: '8px 0' }} />
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '20px', fontWeight: 'bold' }}>
+                  <span>ИТОГО:</span>
+                  <span style={{ color: '#28a745' }}>{formatPrice(priceInfo.total)}</span>
+                </div>
+              </div>
+            </div>
+          </>
+        )}
         
         <div className="form-group">
           <label>📝 Описание системы:</label>
