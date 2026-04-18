@@ -33,8 +33,9 @@ const Form = () => {
   const validatePhoneNumber = (phone) => {
     if (!phone) return true;
     
-    const phoneRegex = /^(\+7|8)[\s\-]?\(?[0-9]{3}\)?[\s\-]?[0-9]{3}[\s\-]?[0-9]{2}[\s\-]?[0-9]{2}$/;
-    const simplePhoneRegex = /^[\+\d\s\-\(\)]{10,20}$/;
+    // Исправленные регулярные выражения (без лишних экранирований)
+    const phoneRegex = /^(\+7|8)[\s-]?\(?[0-9]{3}\)?[\s-]?[0-9]{3}[\s-]?[0-9]{2}[\s-]?[0-9]{2}$/;
+    const simplePhoneRegex = /^[\+\d\s()-]{10,20}$/;
     
     if (!phoneRegex.test(phone) && !simplePhoneRegex.test(phone)) {
       return false;
@@ -48,25 +49,7 @@ const Form = () => {
     return true;
   };
 
-  useEffect(() => {
-    if (isEditMode) {
-      loadSecurityObject();
-    }
-  }, [id]);
-
-  // Обновляем цену при изменении типа, камер или сотрудников
-  useEffect(() => {
-    if (formData.buildingType) {
-      const cameras = Number(formData.cameras) || 0;
-      const staff = Number(formData.staff) || 0;
-      const price = calculatePrice(formData.buildingType, cameras, staff);
-      setPriceCalculation(price);
-    } else {
-      setPriceCalculation(null);
-    }
-  }, [formData.buildingType, formData.cameras, formData.staff]);
-
-  const loadSecurityObject = async () => {
+  const loadSecurityObject = useCallback(async () => {
     try {
       setLoading(true);
       const data = await securityAPI.getById(id);
@@ -86,7 +69,25 @@ const Form = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [id]);
+
+  useEffect(() => {
+    if (isEditMode) {
+      loadSecurityObject();
+    }
+  }, [id, isEditMode, loadSecurityObject]);
+
+  // Обновляем цену при изменении типа, камер или сотрудников
+  useEffect(() => {
+    if (formData.buildingType) {
+      const cameras = Number(formData.cameras) || 0;
+      const staff = Number(formData.staff) || 0;
+      const price = calculatePrice(formData.buildingType, cameras, staff);
+      setPriceCalculation(price);
+    } else {
+      setPriceCalculation(null);
+    }
+  }, [formData.buildingType, formData.cameras, formData.staff]);
 
   const validateForm = () => {
     const errors = {};
@@ -161,7 +162,7 @@ const Form = () => {
   };
 
   // Автоопределение типа здания
-  const handleAddressAutoDetect = useCallback(async (addressValue) => {
+  const handleAddressAutoDetect = async (addressValue) => {
     if (!addressValue || addressValue.length < 10) return;
     
     setIsDetecting(true);
@@ -176,7 +177,7 @@ const Form = () => {
     } finally {
       setIsDetecting(false);
     }
-  }, []);
+  };
 
   // Обработчик изменения адреса с debounce
   const handleAddressChange = (e) => {
@@ -339,7 +340,7 @@ const Form = () => {
               🔍 Определяем тип здания...
             </small>
           )}
-          {detectionInfo && detectionInfo.source === 'auto' && (
+          {detectionInfo && detectionInfo.type && detectionInfo.type !== 'other' && (
             <small style={{ color: '#28a745', display: 'block', marginTop: '5px' }}>
               ✅ Автоматически определен тип: {PRICE_CONFIG[formData.buildingType]?.name}
             </small>
